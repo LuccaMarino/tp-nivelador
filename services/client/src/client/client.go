@@ -2,17 +2,22 @@ package client
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/bet"
 	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/logger"
 	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/protocol"
 )
+
+// indica que el cliente terminó porque se pidio un shutdown
+var ErrShutdown = errors.New("shutdown requested")
 
 const connectionAttemptsMax = 3
 const connectionAttemptsDelayMs = 200
@@ -36,8 +41,10 @@ type ClientConfig struct {
 }
 
 type Client struct {
-	conn   net.Conn
-	config ClientConfig
+	conn         net.Conn
+	config       ClientConfig
+	shutdown     chan struct{}
+	shutdownOnce sync.Once
 }
 
 func NewClient(config ClientConfig) (*Client, error) {
@@ -47,8 +54,24 @@ func NewClient(config ClientConfig) (*Client, error) {
 		return nil, err
 	}
 
-	client := &Client{conn: conn, config: config}
+	client := &Client{conn: conn, config: config, shutdown: make(chan struct{})}
 	return client, nil
+}
+
+func (client *Client) Shutdown() {
+	client.shutdownOnce.Do(func() {
+		close(client.shutdown)
+		client.conn.Close() // corta si esta bloqueado en read o write
+	})
+}
+
+func (client *Client) shuttingDown() bool {
+	select {
+	case <-client.shutdown:
+		return true
+	default:
+		return false
+	}
 }
 
 func connectToServer(host, port string) (net.Conn, error) {
@@ -205,8 +228,18 @@ func (client *Client) receiveWinners(outputFile *os.File) (int, error) {
 }
 
 func (client *Client) Run() error {
-	const action = "process-bets"
 	defer client.conn.Close()
+
+	err := client.processBets()
+	if err != nil && client.shuttingDown() {
+		// el error es porque se pidio un shutdown y se cerró el socket
+		return ErrShutdown
+	}
+	return err
+}
+
+func (client *Client) processBets() error {
+	const action = "process-bets"
 
 	inputFile, err := os.Open(client.config.InputFile)
 	if err != nil {
