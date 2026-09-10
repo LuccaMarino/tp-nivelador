@@ -8,7 +8,7 @@ func SendAll(socket io.Writer, bytes []byte) error {
 		if err != nil {
 			return err
 		}
-		bytes = bytes[n:] // muevo el slice en n posiciones para enviar los bytes restantes
+		bytes = bytes[n:]
 	}
 	return nil
 }

@@ -2,16 +2,25 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"strconv"
 
 	client "github.com/7574-sistemas-distribuidos/tp-nivelador/src/client"
 	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/logger"
 )
 
+const defaultBatchSize = 32
+
 func loadConfig() (client.ClientConfig, error) {
-	agencyId := os.Getenv("AGENCY_ID")
-	if agencyId == "" {
+	agencyIdEnv := os.Getenv("AGENCY_ID")
+	if agencyIdEnv == "" {
 		return client.ClientConfig{}, errors.New("AGENCY_ID environment variable is required")
+	}
+
+	agencyId, err := strconv.ParseUint(agencyIdEnv, 10, 16)
+	if err != nil {
+		return client.ClientConfig{}, fmt.Errorf("invalid AGENCY_ID %q: %w", agencyIdEnv, err)
 	}
 
 	serverHost := os.Getenv("SERVER_HOST")
@@ -34,12 +43,22 @@ func loadConfig() (client.ClientConfig, error) {
 		return client.ClientConfig{}, errors.New("OUTPUT_FILE environment variable is required")
 	}
 
+	batchSize := defaultBatchSize
+	if batchSizeEnv := os.Getenv("BATCH_SIZE"); batchSizeEnv != "" {
+		parsedBatchSize, err := strconv.Atoi(batchSizeEnv)
+		if err != nil || parsedBatchSize <= 0 {
+			return client.ClientConfig{}, fmt.Errorf("invalid BATCH_SIZE %q", batchSizeEnv)
+		}
+		batchSize = parsedBatchSize
+	}
+
 	return client.ClientConfig{
 		ServerHost: serverHost,
 		ServerPort: serverPort,
-		AgencyId:   agencyId,
+		AgencyId:   uint16(agencyId),
 		InputFile:  inputFile,
 		OutputFile: outputFile,
+		BatchSize:  batchSize,
 	}, nil
 }
 
