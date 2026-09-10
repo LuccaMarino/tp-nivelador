@@ -118,7 +118,7 @@ func (client *Client) sendBatch(batch []bet.Bet) error {
 	if err := protocol.SendBets(client.conn, batch); err != nil {
 		return err
 	}
-	return client.awaitAck() // espera a que
+	return client.awaitAck() // espera a recibir un ACK antes de continuar
 }
 
 func (client *Client) sendBets(inputFile *os.File) (int, error) {
@@ -136,7 +136,7 @@ func (client *Client) sendBets(inputFile *os.File) (int, error) {
 
 		parsedBet, err := parseBet(betLine)
 		if err != nil {
-			logger.Error("parse-bet", logger.Fail, "bet-id", betsCount+1, "err", err)
+			logger.Error("parse-bet", logger.Fail, "bet-id", betsCount+len(batch)+1, "err", err)
 			return betsCount, err
 		}
 
@@ -146,7 +146,7 @@ func (client *Client) sendBets(inputFile *os.File) (int, error) {
 		}
 
 		if err := client.sendBatch(batch); err != nil {
-			logger.Error(action, logger.Fail, "bet-id", betsCount+1, "err", err)
+			logger.Error(action, logger.Fail, "bets-count", betsCount, "err", err)
 			return betsCount, err
 		}
 
@@ -159,6 +159,7 @@ func (client *Client) sendBets(inputFile *os.File) (int, error) {
 		return betsCount, err
 	}
 
+	// si el ultimo batch quedo incompleto, se envia
 	if len(batch) > 0 {
 		if err := client.sendBatch(batch); err != nil {
 			logger.Error(action, logger.Fail, "bets-count", betsCount, "err", err)

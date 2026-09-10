@@ -10,7 +10,7 @@ import (
 	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/logger"
 )
 
-const defaultBatchSize = 32
+const defaultBatchSize = 32 // si no se setea BATCH_SIZE, se usa este valor por default
 
 func loadConfig() (client.ClientConfig, error) {
 	agencyIdEnv := os.Getenv("AGENCY_ID")
